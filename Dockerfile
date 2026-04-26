@@ -10,6 +10,9 @@ RUN dotnet publish -c Release -o /app/publish
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/publish .
+# Explicitly copy wwwroot so static files (CSS, JS, images) are always present in the
+# runtime image, even if the publish step omits them due to SDK content-item defaults.
+COPY --from=build /src/CS2TacticalAssistant.Api/wwwroot ./wwwroot
 ENV ASPNETCORE_URLS=http://0.0.0.0:8080
 EXPOSE 8080
 ENTRYPOINT ["dotnet", "CS2TacticalAssistant.Api.dll"]
