@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CS2 Tactical Assistant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/css/app.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <div>
+          <h1>CS2 Tactical Assistant</h1>
+          <p class="brand-tagline">Pro-grade strats, lineups, and schedule in one place</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span class="status-dot" id="app-status" title="Page loaded">Ready</span>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="map-strip map-strip--decorative" aria-label="Active Duty map pool (decorative)">
+        <p class="map-strip-heading">Map pool</p>
+        <p class="map-strip-sub">The maps the pros play right now</p>
+        <ul class="map-strip-grid">
+          <li>
+            <figure class="map-tile">
+              <img
+                class="map-tile-img" draggable="false" decoding="async" tabindex="-1"
+                src="https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/main/images/de_mirage.png"
+                width="200"
+                height="113"
+                alt="Mirage"
+                loading="lazy"
+                onerror="this.onerror=null;this.removeAttribute('width');this.removeAttribute('height');this.src='/images/maps/mirage.svg'"
+              />
+              <figcaption>Mirage</figcaption>
+            </figure>
+          </li>
+          <li>
+            <figure class="map-tile">
+              <img
+                class="map-tile-img" draggable="false" decoding="async" tabindex="-1"
+                src="https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/main/images/de_inferno.png"
+                width="200"
+                height="113"
+                alt="Inferno"
+                loading="lazy"
+                onerror="this.onerror=null;this.removeAttribute('width');this.removeAttribute('height');this.src='/images/maps/inferno.svg'"
+              />
+              <figcaption>Inferno</figcaption>
+            </figure>
+          </li>
+          <li>
+            <figure class="map-tile">
+              <img
+                class="map-tile-img" draggable="false" decoding="async" tabindex="-1"
+                src="https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/main/images/de_ancient.png"
+                width="200"
+                height="113"
+                alt="Ancient"
+                loading="lazy"
+                onerror="this.onerror=null;this.removeAttribute('width');this.removeAttribute('height');this.src='/images/maps/ancient.svg'"
+              />
+              <figcaption>Ancient</figcaption>
+            </figure>
+          </li>
+          <li>
+            <figure class="map-tile">
+              <img
+                class="map-tile-img" draggable="false" decoding="async" tabindex="-1"
+                src="https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/main/images/de_anubis.png"
+                width="200"
+                height="113"
+                alt="Anubis"
+                loading="lazy"
+                onerror="this.onerror=null;this.removeAttribute('width');this.removeAttribute('height');this.src='/images/maps/anubis.svg'"
+              />
+              <figcaption>Anubis</figcaption>
+            </figure>
+          </li>
+          <li>
+            <figure class="map-tile">
+              <img
+                class="map-tile-img" draggable="false" decoding="async" tabindex="-1"
+                src="https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/main/images/de_dust2.png"
+                width="200"
+                height="113"
+                alt="Dust II"
+                loading="lazy"
+                onerror="this.onerror=null;this.removeAttribute('width');this.removeAttribute('height');this.src='/images/maps/dust2.svg'"
+              />
+              <figcaption>Dust II</figcaption>
+            </figure>
+          </li>
+          <li>
+            <figure class="map-tile">
+              <img
+                class="map-tile-img" draggable="false" decoding="async" tabindex="-1"
+                src="https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/main/images/de_nuke.png"
+                width="200"
+                height="113"
+                alt="Nuke"
+                loading="lazy"
+                onerror="this.onerror=null;this.removeAttribute('width');this.removeAttribute('height');this.src='/images/maps/nuke.svg'"
+              />
+              <figcaption>Nuke</figcaption>
+            </figure>
+          </li>
+          <li>
+            <figure class="map-tile">
+              <img
+                class="map-tile-img" draggable="false" decoding="async" tabindex="-1"
+                src="https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/main/images/de_overpass.png"
+                width="200"
+                height="113"
+                alt="Overpass"
+                loading="lazy"
+                onerror="this.onerror=null;this.removeAttribute('width');this.removeAttribute('height');this.src='/images/maps/overpass.svg'"
+              />
+              <figcaption>Overpass</figcaption>
+            </figure>
+          </li>
+          <li>
+            <figure class="map-tile">
+              <img
+                class="map-tile-img" draggable="false" decoding="async" tabindex="-1"
+                src="https://raw.githubusercontent.com/MurkyYT/cs2-map-icons/main/images/de_vertigo.png"
+                width="200"
+                height="113"
+                alt="Vertigo"
+                loading="lazy"
+                onerror="this.onerror=null;this.removeAttribute('width');this.removeAttribute('height');this.src='/images/maps/vertigo.svg'"
+              />
+              <figcaption>Vertigo</figcaption>
+            </figure>
+          </li>
+        </ul>
+      </aside>
+      <div class="layout-center">
+      <main class="column column-main">
+        <div class="coach-hero">
+        <section class="card card-messenger" id="section-chat">
+          <div class="support-widget" aria-label="AI Coach help chat">
+            <header class="support-widget-header">
+              <div class="support-widget-avatar" aria-hidden="true">AI</div>
+              <div class="support-widget-title">
+                <h2>AI Coach</h2>
+                <p>Strategic answers, backed by your playbooks and live data</p>
+              </div>
+            </header>
+            <div class="support-widget-body">
+              <p class="support-widget-intro">
+                Ask anything—setups, executes, money decisions, and what the pros are running today.
+              </p>
+              <div class="prompts" aria-label="Quick prompts">
+                <button type="button" class="chip" data-prompt="Generate a T-side pistol round strat for Ancient.">Ancient T pistol</button>
+                <button type="button" class="chip" data-prompt="Should we force buy after losing pistol?">Force after pistol?</button>
+                <button type="button" class="chip" data-prompt="Give me a Mirage A smoke lineup.">Mirage A smokes</button>
+                <button type="button" class="chip" data-prompt="What should our CT setup be on Inferno B?">Inferno B CT</button>
+                <button type="button" class="chip" data-prompt="Who is playing in pro matches today?">Pro schedule</button>
+                <button type="button" class="chip" data-prompt="Explain when to save instead of retake.">Save vs retake</button>
+                <button type="button" class="chip" data-prompt="Create a full-buy execute for B site Mirage.">Mirage B execute</button>
+              </div>
+              <div id="chat-log" class="chat-log" role="log" aria-label="AI Coach conversation">
+                <div class="chat-welcome" role="status">
+                  Tap a <strong>starter</strong> or ask your own question. You’ll get clear, tactical answers and can use lineups, economy, and the pro schedule when it helps.
+                </div>
+              </div>
+              <div class="chat-composer" role="search">
+                <label class="visually-hidden" for="chat-input">Type your message</label>
+                <input id="chat-input" class="chat-composer-input" type="text" placeholder="Type a message…" autocomplete="off" />
+                <button type="button" class="btn-widget-send" id="send-btn">Send</button>
+              </div>
+            </div>
+            <p id="chat-error" class="form-error" role="alert" aria-live="polite"></p>
+          </div>
+        </section>
+
+        <section class="card game-updates game-updates-hero" id="section-updates" aria-label="Valve game updates for Counter-Strike 2">
+          <div class="card-head">
+            <h2>Latest game updates from Valve</h2>
+            <p class="card-sub">Patch notes and release news straight from Counter-Strike 2 on Steam</p>
+          </div>
+          <div id="valve-updates" class="valve-updates-panel" data-state="loading" aria-live="polite">Loading…</div>
+        </section>
+        </div>
+
+        <section class="card section-sources-lower" id="section-sources">
+          <div class="card-head">
+            <h2>What informed the last answer</h2>
+            <p class="card-sub">Sources your coach used—review them after you get a reply</p>
+          </div>
+          <div id="sources" class="sources-panel">Send a message to see which references were used</div>
+        </section>
+      </main>
+      </div>
+
+      <aside class="column column-side">
+        <section class="card" id="section-matches">
+          <div class="card-head card-head-row">
+            <div>
+              <h2>Pro matches today</h2>
+              <p class="card-sub hltv-pro-deck">
+                Official pro schedule from HLTV—see who’s playing, not a live in-game scoreboard. Times are third‑party, same world as ESL events.
+              </p>
+              <details class="hltv-bridge-details">
+                <summary>Not loading? (advanced)</summary>
+                <p class="hltv-bridge-instructions">
+                  <strong>1</strong> Repo root: <code class="code-inline">cd hltv-bridge</code> →
+                  <code class="code-inline">npm install</code> → <code class="code-inline">npm start</code> (default
+                  <code class="code-inline">http://127.0.0.1:3847</code>).<br />
+                  <strong>2</strong> In repo root <code class="code-inline">.env</code> set
+                  <code class="code-inline">HLTV_BRIDGE_URL=http://127.0.0.1:3847</code> and restart
+                  <code class="code-inline">dotnet run</code>.<br />
+                  <strong>3</strong> Press ↻ below. If empty or error, hltv.org may be rate-limiting — wait 30s and try again. See README → HLTV bridge.
+                </p>
+              </details>
+            </div>
+            <button type="button" class="btn-icon" id="refresh-matches" title="Refresh pro matches from HLTV">↻</button>
+          </div>
+          <div id="matches" class="hltv-matches-out table-wrap" data-state="loading"></div>
+        </section>
+
+        <section class="card" id="section-lineups">
+          <div class="card-head">
+            <h2>Grenade lineups</h2>
+            <p class="card-sub">Find the right smoke, flash, or molly for your map and site</p>
+          </div>
+          <form class="form-grid" onsubmit="return false;">
+            <label class="field"><span class="field-label">Map</span> <input id="lu-map" type="text" value="Mirage" /></label>
+            <label class="field"><span class="field-label">Site</span> <input id="lu-site" type="text" value="A" /></label>
+            <label class="field"><span class="field-label">Grenade</span>
+              <select id="lu-gt">
+                <option value="smoke">Smoke</option>
+                <option value="flash">Flash</option>
+                <option value="molly">Molly</option>
+                <option value="HE">HE</option>
+              </select>
+            </label>
+            <label class="field"><span class="field-label">Side</span>
+              <select id="lu-side">
+                <option value="T">T</option>
+                <option value="CT">CT</option>
+              </select>
+            </label>
+            <div class="form-actions">
+              <button type="button" class="btn-secondary" id="lineup-search-btn">Search</button>
+            </div>
+          </form>
+          <div id="lineups" class="panel-output" data-state="idle"></div>
+        </section>
+
+        <section class="card" id="section-economy">
+          <div class="card-head">
+            <h2>Buy or save</h2>
+            <p class="card-sub">A clear read on the next round—spend, save, or go light</p>
+          </div>
+          <form class="form-grid" onsubmit="return false;">
+            <label class="field"><span class="field-label">Team $</span> <input id="e-money" type="number" value="2400" min="0" step="100" /></label>
+            <label class="field"><span class="field-label">Loss bonus</span> <input id="e-loss" type="number" value="1900" min="0" step="100" /></label>
+            <label class="field"><span class="field-label">Side</span>
+              <select id="e-side">
+                <option value="T">T</option>
+                <option value="CT">CT</option>
+              </select>
+            </label>
+            <label class="field"><span class="field-label">Round #</span> <input id="e-round" type="number" value="2" min="0" max="30" step="1" /></label>
+            <label class="field field-full"><span class="field-label">Saved weapons</span> <input id="e-saved" type="text" placeholder="AK-47, M4, …" /></label>
+            <div class="form-actions">
+              <button type="button" class="btn-secondary" id="economy-btn">Explain</button>
+            </div>
+          </form>
+          <div id="economy-out" class="economy-out panel-output"></div>
+        </section>
+
+        <section class="card" id="section-save">
+          <div class="card-head">
+            <h2>Save to playbook</h2>
+            <p class="card-sub">Keep the last coach answer with your own notes for next scrim</p>
+          </div>
+          <label class="field"><span class="field-label">Title</span> <input id="strat-title" type="text" placeholder="e.g. Mirage B take" /></label>
+          <label class="field"><span class="field-label">Notes</span> <textarea id="strat-notes" rows="2" placeholder="Optional"></textarea></label>
+          <div class="form-actions">
+            <button type="button" class="btn-secondary" id="save-strat-btn">Save to playbook</button>
+          </div>
+        </section>
+
+        <section class="card" id="section-strats">
+          <div class="card-head">
+            <h2>Your playbook</h2>
+            <p class="card-sub">Strats and notes you’ve saved, ready to review or share</p>
+          </div>
+          <div id="strats" class="strats-list" data-state="loading"></div>
+        </section>
+      </aside>
+    </div>
+
+    <script src="/js/app.js" defer></script>
+  </body>
+</html>

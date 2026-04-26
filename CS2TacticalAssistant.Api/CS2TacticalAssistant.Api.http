@@ -1,0 +1,46 @@
+@host = http://localhost:5168
+
+### Health: open browser to {{host}}/
+
+### Chat (requires OPENAI_API_KEY + MYSQL_*)
+POST {{host}}/api/chat
+Content-Type: application/json
+
+{
+  "message": "Who is playing in pro league today?",
+  "userId": 1
+}
+
+### RAG search
+GET {{host}}/api/knowledge/search?q=Mirage%20smoke
+
+### Lineups
+GET {{host}}/api/lineups/search?map=Mirage&site=A&grenade_type=smoke&side=T
+
+### Matches
+GET {{host}}/api/matches/today
+
+### Economy
+POST {{host}}/api/economy/explain
+Content-Type: application/json
+
+{
+  "teamMoney": 2400,
+  "lossBonus": 1900,
+  "side": "T",
+  "roundNumber": 2,
+  "weaponsSaved": []
+}
+
+### Save strat
+POST {{host}}/api/strats/save
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "title": "Demo strat",
+  "payload": { "note": "B execute", "from": "http file" }
+}
+
+### List strats
+GET {{host}}/api/strats?userId=1

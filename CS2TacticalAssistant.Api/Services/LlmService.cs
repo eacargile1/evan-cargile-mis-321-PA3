@@ -1,0 +1,208 @@
+using System.Text;
+using System.Text.Json;
+using CS2TacticalAssistant.Api.Models;
+using MySqlConnector;
+using OpenAI.Chat;
+
+namespace CS2TacticalAssistant.Api.Services;
+
+/// <summary>
+/// Orchestrates: (1) <b>RAG retrieval</b> from MySQL, (2) <b>LLM</b> chat completion via OpenAI,
+/// (3) <b>function calling</b> loop executing backend tools. Each stage is marked in code for demos.
+/// </summary>
+public sealed class LlmService : ILlmService
+{
+    private readonly ChatClient? _chatClient;
+    private readonly IRagService _rag;
+    private readonly IFunctionCallingService _functionCalling;
+    private readonly IDatabaseService _database;
+
+    private static readonly ChatCompletionOptions ToolOptions = new()
+    {
+        Tools =
+        {
+            ChatTool.CreateFunctionTool(
+                functionName: "generate_round_strategy",
+                functionDescription:
+                "Build a structured round plan: buys, roles, utility, timing, and step-by-step strategy for CS2.",
+                functionParameters: BinaryData.FromBytes("""
+                {
+                  "type": "object",
+                  "properties": {
+                    "map": { "type": "string", "description": "Map name e.g. Mirage, Inferno, Ancient" },
+                    "side": { "type": "string", "enum": ["T", "CT"] },
+                    "round_type": { "type": "string", "enum": ["pistol", "eco", "force", "full buy"] },
+                    "goal": { "type": "string", "enum": ["default", "execute", "retake", "save", "lurk", "mid control", "site hit"] }
+                  },
+                  "required": ["map", "side", "round_type", "goal"]
+                }
+                """u8.ToArray())),
+            ChatTool.CreateFunctionTool(
+                functionName: "explain_economy_decision",
+                functionDescription: "Explain buy/save decision from team money, loss bonus, side, round, and saved weapons.",
+                functionParameters: BinaryData.FromBytes("""
+                {
+                  "type": "object",
+                  "properties": {
+                    "team_money": { "type": "integer" },
+                    "loss_bonus": { "type": "integer" },
+                    "side": { "type": "string", "enum": ["T", "CT"] },
+                    "round_number": { "type": "integer" },
+                    "weapons_saved": { "type": "array", "items": { "type": "string" } }
+                  },
+                  "required": ["team_money", "loss_bonus", "side", "round_number", "weapons_saved"]
+                }
+                """u8.ToArray())),
+            ChatTool.CreateFunctionTool(
+                functionName: "search_lineups",
+                functionDescription: "Search grenade lineups from the MySQL lineup_library table.",
+                functionParameters: BinaryData.FromBytes("""
+                {
+                  "type": "object",
+                  "properties": {
+                    "map": { "type": "string" },
+                    "site": { "type": "string", "description": "A, B, mid, etc." },
+                    "grenade_type": { "type": "string", "enum": ["smoke", "flash", "molly", "HE"] },
+                    "side": { "type": "string", "enum": ["T", "CT"] }
+                  },
+                  "required": ["map", "site", "grenade_type", "side"]
+                }
+                """u8.ToArray())),
+            ChatTool.CreateFunctionTool(
+                functionName: "get_today_matches",
+                functionDescription:
+                "Return upcoming / live pro matches from HLTV (via the app’s hltv-bridge + gigobyte/hltv). Optional tournament name filter.",
+                functionParameters: BinaryData.FromBytes("""
+                {
+                  "type": "object",
+                  "properties": {
+                    "tournament_name": { "type": "string", "description": "Optional filter substring" }
+                  }
+                }
+                """u8.ToArray()))
+        }
+    };
+
+    public LlmService(IRagService rag, IFunctionCallingService functionCalling, IDatabaseService database)
+    {
+        _rag = rag;
+        _functionCalling = functionCalling;
+        _database = database;
+
+        // --- LLM usage: OpenAI API key from environment (never hardcode) ---
+        var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+        var model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "gpt-4o-mini";
+        if (!string.IsNullOrWhiteSpace(apiKey))
+            _chatClient = new ChatClient(model, apiKey);
+    }
+
+    public async Task<ChatResponse> ChatAsync(ChatRequest request, CancellationToken ct = default)
+    {
+        if (_chatClient is null)
+            throw new InvalidOperationException("OPENAI_API_KEY is not set. Copy example.env and export variables.");
+
+        if (string.IsNullOrWhiteSpace(request.Message))
+            throw new ArgumentException("Message is required.");
+
+        // --- RAG retrieval: pull knowledge chunks from MySQL for grounded prompting ---
+        var sources = await _rag.SearchAsync(request.Message, take: 8, ct);
+        var ragBlock = new StringBuilder();
+        ragBlock.AppendLine("Knowledge base excerpts (cite mentally, do not invent map-specific facts beyond these):");
+        foreach (var s in sources)
+            ragBlock.AppendLine($"[{s.Category}] {s.Title}: {s.Content}");
+
+        var system = $"""
+            You are **CS2 Tactical Assistant**, an esports coach / analyst for Counter-Strike 2.
+            Tone: practical, concise, team-focused. Prefer numbered steps for executes.
+            When structured data helps (lineups, HLTV schedule, economy math, full round plans), call the provided tools.
+            After tools return, synthesize a clear answer for the player — do not dump raw JSON.
+            {ragBlock}
+            """;
+
+        List<ChatMessage> messages =
+        [
+            new SystemChatMessage(system),
+            new UserChatMessage(request.Message)
+        ];
+
+        var toolCallsUsed = new List<string>();
+        string reply = "";
+
+        for (var round = 0; round < 8; round++)
+        {
+            // --- LLM usage: model completion request ---
+            var completion = (await _chatClient.CompleteChatAsync(messages, ToolOptions, ct)).Value;
+
+            switch (completion.FinishReason)
+            {
+                case ChatFinishReason.Stop:
+                    reply = string.Concat(completion.Content.Select(static p => p.Text ?? ""));
+                    messages.Add(new AssistantChatMessage(completion));
+                    round = 999;
+                    break;
+
+                case ChatFinishReason.ToolCalls:
+                    messages.Add(new AssistantChatMessage(completion));
+                    foreach (var toolCall in completion.ToolCalls)
+                    {
+                        toolCallsUsed.Add(toolCall.FunctionName);
+                        var args = toolCall.FunctionArguments?.ToString() ?? "{}";
+                        // --- Function calling: execute C# tool handlers against MySQL / heuristics ---
+                        var toolOutput = await _functionCalling.ExecuteToolAsync(toolCall.FunctionName, args, ct);
+                        messages.Add(new ToolChatMessage(toolCall.Id, toolOutput));
+                    }
+                    break;
+
+                default:
+                    reply = string.Concat(completion.Content.Select(static p => p.Text ?? ""));
+                    messages.Add(new AssistantChatMessage(completion));
+                    round = 999;
+                    break;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(reply))
+        {
+            reply = toolCallsUsed.Count > 0
+                ? "Tools returned data but the model hit the max tool round limit without a final summary — try a shorter question or repeat."
+                : "No assistant text returned — check OPENAI_API_KEY, model name, or API errors.";
+        }
+
+        await PersistChatAsync(request.UserId, request.Message, reply, sources, toolCallsUsed, ct);
+
+        return new ChatResponse
+        {
+            Reply = reply,
+            SourcesUsed = sources,
+            ToolCallsUsed = toolCallsUsed.Distinct().ToList()
+        };
+    }
+
+    private async Task PersistChatAsync(
+        ulong? userId,
+        string userMsg,
+        string assistantMsg,
+        IReadOnlyList<KnowledgeChunkDto> sources,
+        List<string> tools,
+        CancellationToken ct)
+    {
+        await using var conn = _database.CreateConnection();
+        await conn.OpenAsync(ct);
+        var meta = JsonSerializer.Serialize(new { sources = sources.Select(s => s.Id).ToList(), tools });
+        const string sql = """
+            INSERT INTO chat_logs (user_id, role, content, meta) VALUES (@uid, @role, @content, CAST(@meta AS JSON))
+            """;
+        async Task Ins(string role, string content)
+        {
+            await using var cmd = new MySqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@uid", userId.HasValue ? userId.Value : (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@role", role);
+            cmd.Parameters.AddWithValue("@content", content);
+            cmd.Parameters.AddWithValue("@meta", meta);
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+
+        await Ins("user", userMsg);
+        await Ins("assistant", assistantMsg);
+    }
+}

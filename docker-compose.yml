@@ -1,0 +1,55 @@
+# One-command local "full stack": MySQL (schema+seed) + HLTV bridge + API.
+# 1) Copy `example.env` to `.env` in the repo root and set OPENAI_API_KEY.
+# 2) docker compose up --build
+# App: http://localhost:8080/   Health: http://localhost:8080/api/health
+# First MySQL data dir gets schema/seed; to re-run SQL, `docker compose down -v` then up again.
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: devroot
+      MYSQL_USER: cst2
+      MYSQL_PASSWORD: cst2pass
+      MYSQL_DATABASE: cs2_tactical
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-ucst2", "-pcst2pass"]
+      interval: 4s
+      timeout: 3s
+      retries: 30
+
+  hltv-bridge:
+    build: ./hltv-bridge
+    environment:
+      HLTV_BRIDGE_PORT: 3847
+    ports:
+      - "3847:3847"
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+      hltv-bridge:
+        condition: service_started
+    ports:
+      - "8080:8080"
+    environment:
+      # Compose reads a `.env` in this folder for ${...} interpolation — copy from example.env first.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      # Override any local .env (localhost MySQL) for the Docker network.
+      MYSQL_HOST: db
+      MYSQL_PORT: "3306"
+      MYSQL_USER: cst2
+      MYSQL_PASSWORD: cst2pass
+      MYSQL_DATABASE: cs2_tactical
+      HLTV_BRIDGE_URL: http://hltv-bridge:3847/
+
+volumes:
+  mysql_data: {}

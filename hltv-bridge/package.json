@@ -1,0 +1,13 @@
+{
+  "name": "cs2-tactical-hltv-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Thin HTTP server wrapping gigobyte/hltv (npm) for the CS2 Tactical Assistant .NET app",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "hltv": "^3.5.0"
+  }
+}
