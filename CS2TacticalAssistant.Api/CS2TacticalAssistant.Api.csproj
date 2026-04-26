@@ -13,4 +13,11 @@
     <PackageReference Include="OpenAI" Version="2.10.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Ensure static assets are always copied into publish output -->
+    <Content Update="wwwroot\**\*">
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>
