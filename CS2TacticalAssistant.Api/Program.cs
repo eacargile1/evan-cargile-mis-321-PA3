@@ -99,6 +99,11 @@ app.MapControllers();
         "/{**path}",
         (HttpContext http) =>
         {
+            // Never serve SPA HTML for static asset-like paths (e.g. /js/app.js, /css/app.css).
+            // If a file is missing, return 404 so browsers don't try to parse HTML as JS/CSS.
+            if (Path.HasExtension(http.Request.Path.Value))
+                return Results.StatusCode(404);
+
             if (http.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
                 return Results.StatusCode(404);
             if (!File.Exists(index))
