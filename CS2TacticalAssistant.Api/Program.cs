@@ -138,6 +138,8 @@ app.MapGet(
                     ?? Environment.GetEnvironmentVariable("MYSQLPASSWORD")),
                 mysqlDatabase = EnvPick("MYSQL_DATABASE", "MYSQLDATABASE") ?? "(missing)",
                 mysqlSslMode = Environment.GetEnvironmentVariable("MYSQL_SSL_MODE") ?? "(default Preferred)",
+                mysqlUrlSet = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MYSQL_URL")),
+                mysqlPublicUrlSet = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MYSQL_PUBLIC_URL")),
             });
     });
 app.MapGet(
