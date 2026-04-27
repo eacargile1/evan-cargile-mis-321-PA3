@@ -16,9 +16,14 @@ public sealed class DatabaseService : IDatabaseService
         var sslMode = Environment.GetEnvironmentVariable("MYSQL_SSL_MODE")?.Trim();
         if (string.IsNullOrEmpty(sslMode)) sslMode = "Preferred";
 
-        var mysqlUrl = FirstNonEmpty(
-            Environment.GetEnvironmentVariable("MYSQL_URL"),
-            Environment.GetEnvironmentVariable("MYSQL_PUBLIC_URL"));
+        // If `mysql://` URL auth fails (stale ref, or ':' inside password confusing URI parsing), set MYSQL_PREFER_SPLIT_ENV=1
+        // on the web service and use MYSQLHOST / MYSQLPASSWORD / … references instead.
+        var preferSplit = IsTruthy(Environment.GetEnvironmentVariable("MYSQL_PREFER_SPLIT_ENV"));
+        var mysqlUrl = preferSplit
+            ? null
+            : FirstNonEmpty(
+                Environment.GetEnvironmentVariable("MYSQL_URL"),
+                Environment.GetEnvironmentVariable("MYSQL_PUBLIC_URL"));
 
         if (!string.IsNullOrWhiteSpace(mysqlUrl) && mysqlUrl.StartsWith("mysql://", StringComparison.OrdinalIgnoreCase))
         {
@@ -56,6 +61,7 @@ public sealed class DatabaseService : IDatabaseService
             rawUrl.Replace("mysql://", "http://", StringComparison.OrdinalIgnoreCase),
             UriKind.Absolute);
 
+        // user:password — password may contain ':' if encoded; unencoded ':' breaks first-split; take first segment as user, rest as password.
         var userInfo = uri.UserInfo;
         var colon = userInfo.IndexOf(':');
         var user = colon >= 0 ? Uri.UnescapeDataString(userInfo[..colon]) : Uri.UnescapeDataString(userInfo);
@@ -72,6 +78,11 @@ public sealed class DatabaseService : IDatabaseService
             $"Server={host};Port={port};User ID={user};Password={password};Database={database};"
             + $"SslMode={sslMode};AllowPublicKeyRetrieval=true;Maximum Pool Size=20;";
     }
+
+    private static bool IsTruthy(string? v) =>
+        string.Equals(v?.Trim(), "1", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(v?.Trim(), "true", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(v?.Trim(), "yes", StringComparison.OrdinalIgnoreCase);
 
     private static string EnvAny(string primaryKey, string fallbackKey)
     {

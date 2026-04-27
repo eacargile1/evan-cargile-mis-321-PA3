@@ -147,19 +147,28 @@ app.MapGet(
             return colon >= 0 ? Uri.UnescapeDataString(ui[..colon]) : Uri.UnescapeDataString(ui);
         }
 
+        var preferSplit = string.Equals(Environment.GetEnvironmentVariable("MYSQL_PREFER_SPLIT_ENV")?.Trim(), "1", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(Environment.GetEnvironmentVariable("MYSQL_PREFER_SPLIT_ENV")?.Trim(), "true", StringComparison.OrdinalIgnoreCase);
         var rawUrl = FirstNonEmptyUrl();
-        var usesUrl = !string.IsNullOrWhiteSpace(rawUrl) && rawUrl.StartsWith("mysql://", StringComparison.OrdinalIgnoreCase);
+        var usesUrl = !preferSplit
+            && !string.IsNullOrWhiteSpace(rawUrl)
+            && rawUrl.StartsWith("mysql://", StringComparison.OrdinalIgnoreCase);
         var userResolved = usesUrl ? UserFromMysqlUrl(rawUrl!) : EnvPick("MYSQL_USER", "MYSQLUSER");
         string mode;
-        var u1 = Environment.GetEnvironmentVariable("MYSQL_URL")?.Trim();
-        if (!string.IsNullOrWhiteSpace(u1) && u1.StartsWith("mysql://", StringComparison.OrdinalIgnoreCase))
-            mode = "MYSQL_URL";
-        else if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MYSQL_PUBLIC_URL")?.Trim())
-                 && Environment.GetEnvironmentVariable("MYSQL_PUBLIC_URL")!.Trim()
-                     .StartsWith("mysql://", StringComparison.OrdinalIgnoreCase))
-            mode = "MYSQL_PUBLIC_URL";
+        if (preferSplit)
+            mode = "split_env_forced_by_MYSQL_PREFER_SPLIT_ENV";
         else
-            mode = "split_env";
+        {
+            var u1 = Environment.GetEnvironmentVariable("MYSQL_URL")?.Trim();
+            if (!string.IsNullOrWhiteSpace(u1) && u1.StartsWith("mysql://", StringComparison.OrdinalIgnoreCase))
+                mode = "MYSQL_URL";
+            else if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MYSQL_PUBLIC_URL")?.Trim())
+                     && Environment.GetEnvironmentVariable("MYSQL_PUBLIC_URL")!.Trim()
+                         .StartsWith("mysql://", StringComparison.OrdinalIgnoreCase))
+                mode = "MYSQL_PUBLIC_URL";
+            else
+                mode = "split_env";
+        }
 
         return Results.Json(
             new
@@ -178,8 +187,16 @@ app.MapGet(
                 mysqlSslMode = Environment.GetEnvironmentVariable("MYSQL_SSL_MODE") ?? "(default Preferred)",
                 mysqlUrlSet = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MYSQL_URL")),
                 mysqlPublicUrlSet = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MYSQL_PUBLIC_URL")),
+                mysqlPreferSplitEnv = string.Equals(
+                    Environment.GetEnvironmentVariable("MYSQL_PREFER_SPLIT_ENV")?.Trim(),
+                    "1",
+                    StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(
+                        Environment.GetEnvironmentVariable("MYSQL_PREFER_SPLIT_ENV")?.Trim(),
+                        "true",
+                        StringComparison.OrdinalIgnoreCase),
                 note =
-                    "DatabaseService uses MYSQL_URL (else MYSQL_PUBLIC_URL) if set; otherwise MYSQL_USER or MYSQLUSER. There is no hardcoded DB username in code.",
+                    "DatabaseService uses MYSQL_URL (else MYSQL_PUBLIC_URL) unless MYSQL_PREFER_SPLIT_ENV=1; then MYSQLHOST/MYSQLPASSWORD/… only. No hardcoded DB user.",
             });
     });
 app.MapGet(
