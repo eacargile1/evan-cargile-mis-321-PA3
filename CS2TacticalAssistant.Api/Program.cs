@@ -125,11 +125,49 @@ app.MapGet(
             return null;
         }
 
+        static string? FirstNonEmptyUrl()
+        {
+            foreach (var k in new[] { "MYSQL_URL", "MYSQL_PUBLIC_URL" })
+            {
+                var v = Environment.GetEnvironmentVariable(k);
+                if (!string.IsNullOrWhiteSpace(v)) return v!.Trim();
+            }
+
+            return null;
+        }
+
+        static string? UserFromMysqlUrl(string rawUrl)
+        {
+            if (!rawUrl.StartsWith("mysql://", StringComparison.OrdinalIgnoreCase)) return null;
+            var uri = new Uri(
+                rawUrl.Replace("mysql://", "http://", StringComparison.OrdinalIgnoreCase),
+                UriKind.Absolute);
+            var ui = uri.UserInfo;
+            var colon = ui.IndexOf(':');
+            return colon >= 0 ? Uri.UnescapeDataString(ui[..colon]) : Uri.UnescapeDataString(ui);
+        }
+
+        var rawUrl = FirstNonEmptyUrl();
+        var usesUrl = !string.IsNullOrWhiteSpace(rawUrl) && rawUrl.StartsWith("mysql://", StringComparison.OrdinalIgnoreCase);
+        var userResolved = usesUrl ? UserFromMysqlUrl(rawUrl!) : EnvPick("MYSQL_USER", "MYSQLUSER");
+        string mode;
+        var u1 = Environment.GetEnvironmentVariable("MYSQL_URL")?.Trim();
+        if (!string.IsNullOrWhiteSpace(u1) && u1.StartsWith("mysql://", StringComparison.OrdinalIgnoreCase))
+            mode = "MYSQL_URL";
+        else if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MYSQL_PUBLIC_URL")?.Trim())
+                 && Environment.GetEnvironmentVariable("MYSQL_PUBLIC_URL")!.Trim()
+                     .StartsWith("mysql://", StringComparison.OrdinalIgnoreCase))
+            mode = "MYSQL_PUBLIC_URL";
+        else
+            mode = "split_env";
+
         return Results.Json(
             new
             {
                 openAiConfigured = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OPENAI_API_KEY")),
                 openAiModel = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "(default gpt-4o-mini)",
+                mysqlConnectionMode = mode,
+                mysqlUserResolvedForDb = userResolved ?? "(missing)",
                 mysqlHost = EnvPick("MYSQL_HOST", "MYSQLHOST") ?? "(missing)",
                 mysqlPort = EnvPick("MYSQL_PORT", "MYSQLPORT") ?? "(missing)",
                 mysqlUser = EnvPick("MYSQL_USER", "MYSQLUSER") ?? "(missing)",
@@ -140,6 +178,8 @@ app.MapGet(
                 mysqlSslMode = Environment.GetEnvironmentVariable("MYSQL_SSL_MODE") ?? "(default Preferred)",
                 mysqlUrlSet = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MYSQL_URL")),
                 mysqlPublicUrlSet = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MYSQL_PUBLIC_URL")),
+                note =
+                    "DatabaseService uses MYSQL_URL (else MYSQL_PUBLIC_URL) if set; otherwise MYSQL_USER or MYSQLUSER. There is no hardcoded DB username in code.",
             });
     });
 app.MapGet(
