@@ -136,7 +136,19 @@ public sealed class LlmService : ILlmService
         for (var round = 0; round < 8; round++)
         {
             // --- LLM usage: model completion request ---
-            var completion = (await _chatClient.CompleteChatAsync(messages, CreateChatCompletionOptions(), ct)).Value;
+            var requestOptions = CreateChatCompletionOptions();
+            var requestModel = ChatCompletionOptionsModel.Get(requestOptions);
+            ChatCompletion completion;
+            try
+            {
+                completion = (await _chatClient.CompleteChatAsync(messages, requestOptions, ct)).Value;
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    $"OpenAI chat call failed (clientModel='{_model}', requestModel='{requestModel ?? "(null)"}'). {ex.Message}",
+                    ex);
+            }
 
             switch (completion.FinishReason)
             {
@@ -220,4 +232,5 @@ file static class ChatCompletionOptionsModel
         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 
     public static void Set(ChatCompletionOptions options, string model) => ModelProperty?.SetValue(options, model);
+    public static string? Get(ChatCompletionOptions options) => ModelProperty?.GetValue(options) as string;
 }

@@ -180,6 +180,7 @@ app.MapGet(
             {
                 openAiConfigured = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OPENAI_API_KEY")),
                 openAiModel = openAiModelResolved,
+                railwayCommitSha = Environment.GetEnvironmentVariable("RAILWAY_GIT_COMMIT_SHA") ?? "(missing)",
                 mysqlConnectionMode = mode,
                 mysqlUserResolvedForDb = userResolved ?? "(missing)",
                 mysqlHost = EnvPick("MYSQL_HOST", "MYSQLHOST") ?? "(missing)",
