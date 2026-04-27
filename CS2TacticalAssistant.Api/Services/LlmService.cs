@@ -84,7 +84,8 @@ public sealed class LlmService : ILlmService
         var modelEnv = Environment.GetEnvironmentVariable("OPENAI_MODEL");
         var model = string.IsNullOrWhiteSpace(modelEnv) ? "gpt-4o-mini" : modelEnv.Trim();
         if (!string.IsNullOrWhiteSpace(apiKey))
-            _chatClient = new ChatClient(model, apiKey);
+            // Official SDK: model first, then apiKey — use names so nobody inverts them.
+            _chatClient = new ChatClient(model: model, apiKey: apiKey);
     }
 
     public async Task<ChatResponse> ChatAsync(ChatRequest request, CancellationToken ct = default)
