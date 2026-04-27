@@ -3,7 +3,9 @@ using System.Text;
 using System.Text.Json;
 using CS2TacticalAssistant.Api.Models;
 using MySqlConnector;
+using OpenAI;
 using OpenAI.Chat;
+using System.ClientModel;
 
 namespace CS2TacticalAssistant.Api.Services;
 
@@ -16,6 +18,7 @@ public sealed class LlmService : ILlmService
     private readonly ChatClient? _chatClient;
     /// <summary>OpenAI model id used for <see cref="ChatClient"/> and forced onto each <see cref="ChatCompletionOptions"/>.</summary>
     private readonly string _model;
+    private readonly string _openAiEndpoint;
     private readonly IRagService _rag;
     private readonly IFunctionCallingService _functionCalling;
     private readonly IDatabaseService _database;
@@ -83,9 +86,15 @@ public sealed class LlmService : ILlmService
         // Railway often defines OPENAI_MODEL with an empty value; ?? only handles null, not "".
         var modelEnv = Environment.GetEnvironmentVariable("OPENAI_MODEL");
         _model = string.IsNullOrWhiteSpace(modelEnv) ? "gpt-4o-mini" : modelEnv.Trim();
+        _openAiEndpoint = "https://api.openai.com/v1";
         if (!string.IsNullOrWhiteSpace(apiKey))
-            // Official SDK: model first, then apiKey — use names so nobody inverts them.
-            _chatClient = new ChatClient(model: _model, apiKey: apiKey);
+        {
+            var options = new OpenAIClientOptions
+            {
+                Endpoint = new Uri(_openAiEndpoint)
+            };
+            _chatClient = new ChatClient(model: _model, credential: new ApiKeyCredential(apiKey), options: options);
+        }
     }
 
     /// <summary>
@@ -146,7 +155,7 @@ public sealed class LlmService : ILlmService
             catch (Exception ex)
             {
                 throw new InvalidOperationException(
-                    $"OpenAI chat call failed (clientModel='{_model}', requestModel='{requestModel ?? "(null)"}'). {ex.Message}",
+                    $"OpenAI chat call failed (endpoint='{_openAiEndpoint}', clientModel='{_model}', requestModel='{requestModel ?? "(null)"}'). {ex.Message}",
                     ex);
             }
 

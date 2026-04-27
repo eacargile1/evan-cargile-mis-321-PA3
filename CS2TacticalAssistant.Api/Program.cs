@@ -180,6 +180,8 @@ app.MapGet(
             {
                 openAiConfigured = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OPENAI_API_KEY")),
                 openAiModel = openAiModelResolved,
+                openAiBaseUrlEnv = Environment.GetEnvironmentVariable("OPENAI_BASE_URL") ?? "(missing)",
+                openAiEndpointEnv = Environment.GetEnvironmentVariable("OPENAI_ENDPOINT") ?? "(missing)",
                 railwayCommitSha = Environment.GetEnvironmentVariable("RAILWAY_GIT_COMMIT_SHA") ?? "(missing)",
                 mysqlConnectionMode = mode,
                 mysqlUserResolvedForDb = userResolved ?? "(missing)",
