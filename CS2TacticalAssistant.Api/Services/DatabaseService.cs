@@ -4,8 +4,8 @@ namespace CS2TacticalAssistant.Api.Services;
 
 /// <summary>
 /// --- MySQL database connection ---
-/// Hosted deployment (Heroku + JawsDB): set MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE.
-/// Local: copy example.env values or export the same variables before `dotnet run`.
+/// Set MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE (see example.env).
+/// Railway’s MySQL plugin also injects MYSQLHOST, MYSQLPORT, MYSQLUSER, MYSQLPASSWORD, MYSQLDATABASE — those are accepted as fallbacks.
 /// </summary>
 public sealed class DatabaseService : IDatabaseService
 {
@@ -13,11 +13,11 @@ public sealed class DatabaseService : IDatabaseService
 
     public DatabaseService()
     {
-        var host = Env("MYSQL_HOST");
-        var port = Env("MYSQL_PORT");
-        var user = Env("MYSQL_USER");
-        var password = Env("MYSQL_PASSWORD");
-        var database = Env("MYSQL_DATABASE");
+        var host = EnvAny("MYSQL_HOST", "MYSQLHOST");
+        var port = EnvAny("MYSQL_PORT", "MYSQLPORT");
+        var user = EnvAny("MYSQL_USER", "MYSQLUSER");
+        var password = EnvAny("MYSQL_PASSWORD", "MYSQLPASSWORD");
+        var database = EnvAny("MYSQL_DATABASE", "MYSQLDATABASE");
         // Cloud MySQL (Railway, Azure, etc.) often needs Required or VerifyFull — set MYSQL_SSL_MODE if the default fails.
         var sslMode = Environment.GetEnvironmentVariable("MYSQL_SSL_MODE")?.Trim();
         if (string.IsNullOrEmpty(sslMode)) sslMode = "Preferred";
@@ -29,8 +29,13 @@ public sealed class DatabaseService : IDatabaseService
 
     public MySqlConnection CreateConnection() => new(ConnectionString);
 
-    private static string Env(string key) =>
-        Environment.GetEnvironmentVariable(key)
-        ?? throw new InvalidOperationException(
-            $"Missing required environment variable '{key}'. See example.env in repo root.");
+    private static string EnvAny(string primaryKey, string fallbackKey)
+    {
+        var v = Environment.GetEnvironmentVariable(primaryKey);
+        if (!string.IsNullOrWhiteSpace(v)) return v.Trim();
+        v = Environment.GetEnvironmentVariable(fallbackKey);
+        if (!string.IsNullOrWhiteSpace(v)) return v.Trim();
+        throw new InvalidOperationException(
+            $"Missing MySQL setting: set '{primaryKey}' or (Railway) '{fallbackKey}'. See example.env in repo root.");
+    }
 }

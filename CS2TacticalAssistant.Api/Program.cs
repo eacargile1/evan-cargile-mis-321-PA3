@@ -113,15 +113,33 @@ app.MapGet(
 app.MapGet(
     "/api/health/config",
     () =>
-        Results.Json(
+    {
+        static string? EnvPick(params string[] keys)
+        {
+            foreach (var k in keys)
+            {
+                var v = Environment.GetEnvironmentVariable(k);
+                if (!string.IsNullOrWhiteSpace(v)) return v.Trim();
+            }
+
+            return null;
+        }
+
+        return Results.Json(
             new
             {
                 openAiConfigured = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OPENAI_API_KEY")),
                 openAiModel = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "(default gpt-4o-mini)",
-                mysqlHost = Environment.GetEnvironmentVariable("MYSQL_HOST") ?? "(missing)",
-                mysqlDatabase = Environment.GetEnvironmentVariable("MYSQL_DATABASE") ?? "(missing)",
+                mysqlHost = EnvPick("MYSQL_HOST", "MYSQLHOST") ?? "(missing)",
+                mysqlPort = EnvPick("MYSQL_PORT", "MYSQLPORT") ?? "(missing)",
+                mysqlUser = EnvPick("MYSQL_USER", "MYSQLUSER") ?? "(missing)",
+                mysqlPasswordSet = !string.IsNullOrWhiteSpace(
+                    Environment.GetEnvironmentVariable("MYSQL_PASSWORD")
+                    ?? Environment.GetEnvironmentVariable("MYSQLPASSWORD")),
+                mysqlDatabase = EnvPick("MYSQL_DATABASE", "MYSQLDATABASE") ?? "(missing)",
                 mysqlSslMode = Environment.GetEnvironmentVariable("MYSQL_SSL_MODE") ?? "(default Preferred)",
-            }));
+            });
+    });
 app.MapGet(
     "/api/health/db",
     async (IDatabaseService db, CancellationToken ct) =>
