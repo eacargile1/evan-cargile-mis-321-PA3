@@ -101,6 +101,45 @@ app.UseCors();
 app.UseAuthorization();
 app.MapControllers();
 
+// Health / diagnostics as minimal routes (guaranteed registration; avoids controller routing issues on some hosts).
+app.MapGet(
+    "/api/health",
+    () =>
+        Results.Json(new
+        {
+            status = "ok",
+            timeUtc = DateTime.UtcNow,
+        }));
+app.MapGet(
+    "/api/health/config",
+    () =>
+        Results.Json(
+            new
+            {
+                openAiConfigured = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OPENAI_API_KEY")),
+                openAiModel = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "(default gpt-4o-mini)",
+                mysqlHost = Environment.GetEnvironmentVariable("MYSQL_HOST") ?? "(missing)",
+                mysqlDatabase = Environment.GetEnvironmentVariable("MYSQL_DATABASE") ?? "(missing)",
+                mysqlSslMode = Environment.GetEnvironmentVariable("MYSQL_SSL_MODE") ?? "(default Preferred)",
+            }));
+app.MapGet(
+    "/api/health/db",
+    async (IDatabaseService db, CancellationToken ct) =>
+    {
+        try
+        {
+            await using var c = db.CreateConnection();
+            await c.OpenAsync(ct);
+            await using var cmd = new MySqlCommand("SELECT 1", c);
+            var one = await cmd.ExecuteScalarAsync(ct);
+            return Results.Json(new { status = "ok", scalar = one });
+        }
+        catch (Exception ex)
+        {
+            return Results.Json(new { status = "error", error = ex.Message }, statusCode: 503);
+        }
+    });
+
 // Railway / minimal-hosting: endpoint routing can bypass UseStaticFiles for extension paths.
 // Serve critical static assets explicitly so CSS/JS always load (catch-all below would 404 them).
 {
