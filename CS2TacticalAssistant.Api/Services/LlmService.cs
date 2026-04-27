@@ -90,7 +90,10 @@ public sealed class LlmService : ILlmService
         _httpFactory = httpFactory;
 
         // --- LLM usage: OpenAI API key from environment (never hardcode) ---
-        _apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? "";
+        _apiKey = (Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? "")
+            .Trim()
+            .Replace("\r", "")
+            .Replace("\n", "");
         // Railway often defines OPENAI_MODEL with an empty value; ?? only handles null, not "".
         var modelEnv = Environment.GetEnvironmentVariable("OPENAI_MODEL");
         _model = string.IsNullOrWhiteSpace(modelEnv) ? "gpt-4o-mini" : modelEnv.Trim();
