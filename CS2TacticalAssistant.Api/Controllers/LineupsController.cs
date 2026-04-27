@@ -1,5 +1,6 @@
 using CS2TacticalAssistant.Api.Services;
 using Microsoft.AspNetCore.Mvc;
+using MySqlConnector;
 
 namespace CS2TacticalAssistant.Api.Controllers;
 
@@ -16,6 +17,17 @@ public sealed class LineupsController(ILineupService lineups) : ControllerBase
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(map)) return BadRequest(new { error = "map is required." });
-        return Ok(await lineups.SearchAsync(map, site, grenade_type, side, ct));
+        try
+        {
+            return Ok(await lineups.SearchAsync(map, site, grenade_type, side, ct));
+        }
+        catch (MySqlException ex)
+        {
+            return StatusCode(502, new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(503, new { error = ex.Message });
+        }
     }
 }
