@@ -13,6 +13,8 @@ COPY --from=build /app/publish .
 # Explicitly copy wwwroot so static files (CSS, JS, images) are always present in the
 # runtime image, even if the publish step omits them due to SDK content-item defaults.
 COPY --from=build /src/CS2TacticalAssistant.Api/wwwroot ./wwwroot
+# Build-time proof in deploy logs; fail fast if static assets are missing.
+RUN test -f /app/wwwroot/css/app.css && test -f /app/wwwroot/js/app.js && echo "STATIC_ASSETS_PRESENT"
 ENV ASPNETCORE_URLS=http://0.0.0.0:8080
 EXPOSE 8080
 ENTRYPOINT ["dotnet", "CS2TacticalAssistant.Api.dll"]
