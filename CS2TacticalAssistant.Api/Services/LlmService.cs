@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using CS2TacticalAssistant.Api.Models;
@@ -22,6 +23,8 @@ public sealed class LlmService : ILlmService
     private readonly IRagService _rag;
     private readonly IFunctionCallingService _functionCalling;
     private readonly IDatabaseService _database;
+    private readonly IHttpClientFactory _httpFactory;
+    private readonly string _apiKey;
 
     private static readonly ChatTool[] CoachTools =
     [
@@ -75,25 +78,30 @@ public sealed class LlmService : ILlmService
         // get_today_matches omitted until HLTV bridge is deployed (see Matches tab / HLTV_BRIDGE_URL).
     ];
 
-    public LlmService(IRagService rag, IFunctionCallingService functionCalling, IDatabaseService database)
+    public LlmService(
+        IRagService rag,
+        IFunctionCallingService functionCalling,
+        IDatabaseService database,
+        IHttpClientFactory httpFactory)
     {
         _rag = rag;
         _functionCalling = functionCalling;
         _database = database;
+        _httpFactory = httpFactory;
 
         // --- LLM usage: OpenAI API key from environment (never hardcode) ---
-        var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+        _apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? "";
         // Railway often defines OPENAI_MODEL with an empty value; ?? only handles null, not "".
         var modelEnv = Environment.GetEnvironmentVariable("OPENAI_MODEL");
         _model = string.IsNullOrWhiteSpace(modelEnv) ? "gpt-4o-mini" : modelEnv.Trim();
         _openAiEndpoint = "https://api.openai.com/v1";
-        if (!string.IsNullOrWhiteSpace(apiKey))
+        if (!string.IsNullOrWhiteSpace(_apiKey))
         {
             var options = new OpenAIClientOptions
             {
                 Endpoint = new Uri(_openAiEndpoint)
             };
-            _chatClient = new ChatClient(model: _model, credential: new ApiKeyCredential(apiKey), options: options);
+            _chatClient = new ChatClient(model: _model, credential: new ApiKeyCredential(_apiKey), options: options);
         }
     }
 
@@ -154,6 +162,13 @@ public sealed class LlmService : ILlmService
             }
             catch (Exception ex)
             {
+                if (ex.Message.Contains("you must provide a model parameter", StringComparison.OrdinalIgnoreCase))
+                {
+                    reply = await CompleteChatDirectAsync(messages, ct);
+                    round = 999;
+                    break;
+                }
+
                 throw new InvalidOperationException(
                     $"OpenAI chat call failed (endpoint='{_openAiEndpoint}', clientModel='{_model}', requestModel='{requestModel ?? "(null)"}'). {ex.Message}",
                     ex);
@@ -202,6 +217,43 @@ public sealed class LlmService : ILlmService
             SourcesUsed = sources,
             ToolCallsUsed = toolCallsUsed.Distinct().ToList()
         };
+    }
+
+    private async Task<string> CompleteChatDirectAsync(List<ChatMessage> messages, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(_apiKey))
+            throw new InvalidOperationException("OPENAI_API_KEY is not set.");
+
+        var payloadMessages = messages.Select(m => m switch
+        {
+            SystemChatMessage s => new { role = "system", content = string.Concat(s.Content.Select(p => p.Text ?? "")) },
+            UserChatMessage u => new { role = "user", content = string.Concat(u.Content.Select(p => p.Text ?? "")) },
+            AssistantChatMessage a => new { role = "assistant", content = string.Concat(a.Content.Select(p => p.Text ?? "")) },
+            ToolChatMessage t => new { role = "tool", content = string.Concat(t.Content.Select(p => p.Text ?? "")) },
+            _ => new { role = "user", content = m.ToString() ?? "" }
+        }).ToArray();
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            model = _model,
+            messages = payloadMessages,
+            temperature = 0.3
+        });
+
+        using var req = new HttpRequestMessage(HttpMethod.Post, $"{_openAiEndpoint}/chat/completions");
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+        req.Content = new StringContent(payload, Encoding.UTF8, "application/json");
+        var client = _httpFactory.CreateClient();
+        using var res = await client.SendAsync(req, ct);
+        var body = await res.Content.ReadAsStringAsync(ct);
+        if (!res.IsSuccessStatusCode)
+            throw new InvalidOperationException($"OpenAI direct fallback failed ({(int)res.StatusCode}): {body}");
+
+        using var doc = JsonDocument.Parse(body);
+        var content = doc.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
+        return string.IsNullOrWhiteSpace(content)
+            ? "Model returned empty content."
+            : content!;
     }
 
     private async Task PersistChatAsync(
