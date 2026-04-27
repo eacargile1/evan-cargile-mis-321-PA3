@@ -1,5 +1,6 @@
 using CS2TacticalAssistant.Api.Services;
 using DotNetEnv;
+using Microsoft.Extensions.FileProviders;
 using MySqlConnector;
 
 // .NET does not load .env by default. Prefer: repo .env one level up from build output, else walk CWD upward.
@@ -84,17 +85,49 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 
 app.UseCors();
-app.UseDefaultFiles();
-app.UseStaticFiles();
+// Published layout: DLL and wwwroot sit next to each other under AppContext.BaseDirectory.
+// Use an explicit PhysicalFileProvider so static files work even if IWebHostEnvironment.WebRootPath is wrong on the host.
+{
+    var webRootPhysical = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "wwwroot"));
+    if (!Directory.Exists(webRootPhysical))
+        app.Logger.LogError("wwwroot missing at {Path} (BaseDirectory={Base})", webRootPhysical, AppContext.BaseDirectory);
+    else
+    {
+        var files = new PhysicalFileProvider(webRootPhysical);
+        app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = files });
+        app.UseStaticFiles(new StaticFileOptions { FileProvider = files });
+    }
+}
 app.UseAuthorization();
 app.MapControllers();
+
+// Confirms static assets exist in the running container (Railway / Docker debugging).
+app.MapGet(
+    "/api/health/static",
+    () =>
+    {
+        var webRootPhysical = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "wwwroot"));
+        var css = Path.Combine(webRootPhysical, "css", "app.css");
+        var js = Path.Combine(webRootPhysical, "js", "app.js");
+        return Results.Json(
+            new
+            {
+                baseDirectory = AppContext.BaseDirectory,
+                contentRoot = app.Environment.ContentRootPath,
+                webRootEnv = app.Environment.WebRootPath,
+                wwwrootPhysical = webRootPhysical,
+                wwwrootExists = Directory.Exists(webRootPhysical),
+                cssExists = File.Exists(css),
+                jsExists = File.Exists(js),
+            });
+    });
 
 // SPA: serve index.html for non-file routes. Never map HTML onto /api/* (missing or unknown API paths must not return index.html,
 // or fetch("/api/...") gets <!doctype> and JSON.parse throws).
 {
     var env = app.Environment;
-    var wroot = string.IsNullOrEmpty(env.WebRootPath) ? Path.Combine(env.ContentRootPath, "wwwroot") : env.WebRootPath;
-    var index = Path.GetFullPath(Path.Combine(wroot, "index.html"));
+    var wroot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "wwwroot"));
+    var index = Path.Combine(wroot, "index.html");
     app.MapGet(
         "/{**path}",
         (HttpContext http) =>
