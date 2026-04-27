@@ -67,19 +67,8 @@ public sealed class LlmService : ILlmService
                   },
                   "required": ["map", "site", "grenade_type", "side"]
                 }
-                """u8.ToArray())),
-            ChatTool.CreateFunctionTool(
-                functionName: "get_today_matches",
-                functionDescription:
-                "Return upcoming / live pro matches from HLTV (via the app’s hltv-bridge + gigobyte/hltv). Optional tournament name filter.",
-                functionParameters: BinaryData.FromBytes("""
-                {
-                  "type": "object",
-                  "properties": {
-                    "tournament_name": { "type": "string", "description": "Optional filter substring" }
-                  }
-                }
                 """u8.ToArray()))
+            // get_today_matches omitted until HLTV bridge is deployed (see Matches tab / HLTV_BRIDGE_URL).
         }
     };
 
@@ -91,7 +80,9 @@ public sealed class LlmService : ILlmService
 
         // --- LLM usage: OpenAI API key from environment (never hardcode) ---
         var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-        var model = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "gpt-4o-mini";
+        // Railway often defines OPENAI_MODEL with an empty value; ?? only handles null, not "".
+        var modelEnv = Environment.GetEnvironmentVariable("OPENAI_MODEL");
+        var model = string.IsNullOrWhiteSpace(modelEnv) ? "gpt-4o-mini" : modelEnv.Trim();
         if (!string.IsNullOrWhiteSpace(apiKey))
             _chatClient = new ChatClient(model, apiKey);
     }
@@ -114,7 +105,7 @@ public sealed class LlmService : ILlmService
         var system = $"""
             You are **CS2 Tactical Assistant**, an esports coach / analyst for Counter-Strike 2.
             Tone: practical, concise, team-focused. Prefer numbered steps for executes.
-            When structured data helps (lineups, HLTV schedule, economy math, full round plans), call the provided tools.
+            When structured data helps (lineups, economy math, full round plans), call the provided tools.
             After tools return, synthesize a clear answer for the player — do not dump raw JSON.
             {ragBlock}
             """;

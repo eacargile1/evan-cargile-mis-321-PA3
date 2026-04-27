@@ -170,11 +170,16 @@ app.MapGet(
                 mode = "split_env";
         }
 
+        var openAiModelEnv = Environment.GetEnvironmentVariable("OPENAI_MODEL")?.Trim();
+        var openAiModelResolved = string.IsNullOrWhiteSpace(openAiModelEnv)
+            ? "gpt-4o-mini (default)"
+            : openAiModelEnv;
+
         return Results.Json(
             new
             {
                 openAiConfigured = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OPENAI_API_KEY")),
-                openAiModel = Environment.GetEnvironmentVariable("OPENAI_MODEL") ?? "(default gpt-4o-mini)",
+                openAiModel = openAiModelResolved,
                 mysqlConnectionMode = mode,
                 mysqlUserResolvedForDb = userResolved ?? "(missing)",
                 mysqlHost = EnvPick("MYSQL_HOST", "MYSQLHOST") ?? "(missing)",
