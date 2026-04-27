@@ -154,33 +154,25 @@ app.MapGet(
             });
     });
 
-// SPA: serve index.html for non-file routes. Never map HTML onto /api/* (missing or unknown API paths must not return index.html,
-// or fetch("/api/...") gets <!doctype> and JSON.parse throws).
+// SPA: serve index.html only when **no other endpoint matched** (MapFallback — not a greedy catch-all MapGet,
+// which can steal /api/* from attribute-routed controllers and return 404).
 {
-    var env = app.Environment;
     var wroot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "wwwroot"));
     var index = Path.Combine(wroot, "index.html");
-    app.MapGet(
-        "/{**path}",
-        (HttpContext http) =>
+    app.MapFallback((HttpContext http) =>
+    {
+        if (http.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
+            return Results.StatusCode(404);
+        if (Path.HasExtension(http.Request.Path.Value))
+            return Results.StatusCode(404);
+        if (!File.Exists(index))
         {
-            // Never serve SPA HTML for static asset-like paths (e.g. /js/app.js, /css/app.css).
-            // If a file is missing, return 404 so browsers don't try to parse HTML as JS/CSS.
-            if (Path.HasExtension(http.Request.Path.Value))
-                return Results.StatusCode(404);
+            app.Logger.LogError("index.html not found at {Path}", index);
+            return Results.StatusCode(500);
+        }
 
-            if (http.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
-                return Results.StatusCode(404);
-            if (!File.Exists(index))
-            {
-                app.Logger.LogError("index.html not found at {Path}", index);
-                return Results.StatusCode(500);
-            }
-
-            return Results.File(index, "text/html");
-        })
-        // Prefer MapControllers and other specific routes; only then serve index for deep links to the SPA.
-        .WithOrder(100_000);
+        return Results.File(index, "text/html");
+    });
 }
 
 // Ensure FK parent exists for user_id=1 (saved strats, reminders) when DB is fresh
