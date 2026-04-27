@@ -23,15 +23,16 @@ function setStatus(text, ok = true) {
 
 async function parseErrorBody(res) {
   const text = await res.text();
-  let msg = res.statusText || "Request failed";
+  const code = res.status || 0;
+  let msg = (res.statusText && res.statusText.trim()) || "no status text";
   try {
     const j = JSON.parse(text);
     if (j && (j.error || j.title || j.detail)) msg = j.error || j.detail || j.title;
     if (j && j.errors) msg = String(msg) + " " + JSON.stringify(j.errors);
   } catch {
-    if (text && text.length < 300) msg = text;
+    if (text && text.length < 500) msg = text.trim() || msg;
   }
-  return msg;
+  return code ? `[HTTP ${code}] ${msg}` : msg;
 }
 
 function showLoading(el, text = "Loading…") {
