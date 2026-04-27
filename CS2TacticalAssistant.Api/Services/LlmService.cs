@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using CS2TacticalAssistant.Api.Models;
@@ -13,64 +14,63 @@ namespace CS2TacticalAssistant.Api.Services;
 public sealed class LlmService : ILlmService
 {
     private readonly ChatClient? _chatClient;
+    /// <summary>OpenAI model id used for <see cref="ChatClient"/> and forced onto each <see cref="ChatCompletionOptions"/>.</summary>
+    private readonly string _model;
     private readonly IRagService _rag;
     private readonly IFunctionCallingService _functionCalling;
     private readonly IDatabaseService _database;
 
-    private static readonly ChatCompletionOptions ToolOptions = new()
-    {
-        Tools =
-        {
-            ChatTool.CreateFunctionTool(
-                functionName: "generate_round_strategy",
-                functionDescription:
-                "Build a structured round plan: buys, roles, utility, timing, and step-by-step strategy for CS2.",
-                functionParameters: BinaryData.FromBytes("""
-                {
-                  "type": "object",
-                  "properties": {
-                    "map": { "type": "string", "description": "Map name e.g. Mirage, Inferno, Ancient" },
-                    "side": { "type": "string", "enum": ["T", "CT"] },
-                    "round_type": { "type": "string", "enum": ["pistol", "eco", "force", "full buy"] },
-                    "goal": { "type": "string", "enum": ["default", "execute", "retake", "save", "lurk", "mid control", "site hit"] }
-                  },
-                  "required": ["map", "side", "round_type", "goal"]
-                }
-                """u8.ToArray())),
-            ChatTool.CreateFunctionTool(
-                functionName: "explain_economy_decision",
-                functionDescription: "Explain buy/save decision from team money, loss bonus, side, round, and saved weapons.",
-                functionParameters: BinaryData.FromBytes("""
-                {
-                  "type": "object",
-                  "properties": {
-                    "team_money": { "type": "integer" },
-                    "loss_bonus": { "type": "integer" },
-                    "side": { "type": "string", "enum": ["T", "CT"] },
-                    "round_number": { "type": "integer" },
-                    "weapons_saved": { "type": "array", "items": { "type": "string" } }
-                  },
-                  "required": ["team_money", "loss_bonus", "side", "round_number", "weapons_saved"]
-                }
-                """u8.ToArray())),
-            ChatTool.CreateFunctionTool(
-                functionName: "search_lineups",
-                functionDescription: "Search grenade lineups from the MySQL lineup_library table.",
-                functionParameters: BinaryData.FromBytes("""
-                {
-                  "type": "object",
-                  "properties": {
-                    "map": { "type": "string" },
-                    "site": { "type": "string", "description": "A, B, mid, etc." },
-                    "grenade_type": { "type": "string", "enum": ["smoke", "flash", "molly", "HE"] },
-                    "side": { "type": "string", "enum": ["T", "CT"] }
-                  },
-                  "required": ["map", "site", "grenade_type", "side"]
-                }
-                """u8.ToArray()))
-            // get_today_matches omitted until HLTV bridge is deployed (see Matches tab / HLTV_BRIDGE_URL).
-        }
-    };
+    private static readonly ChatTool[] CoachTools =
+    [
+        ChatTool.CreateFunctionTool(
+            functionName: "generate_round_strategy",
+            functionDescription:
+            "Build a structured round plan: buys, roles, utility, timing, and step-by-step strategy for CS2.",
+            functionParameters: BinaryData.FromBytes("""
+            {
+              "type": "object",
+              "properties": {
+                "map": { "type": "string", "description": "Map name e.g. Mirage, Inferno, Ancient" },
+                "side": { "type": "string", "enum": ["T", "CT"] },
+                "round_type": { "type": "string", "enum": ["pistol", "eco", "force", "full buy"] },
+                "goal": { "type": "string", "enum": ["default", "execute", "retake", "save", "lurk", "mid control", "site hit"] }
+              },
+              "required": ["map", "side", "round_type", "goal"]
+            }
+            """u8.ToArray())),
+        ChatTool.CreateFunctionTool(
+            functionName: "explain_economy_decision",
+            functionDescription: "Explain buy/save decision from team money, loss bonus, side, round, and saved weapons.",
+            functionParameters: BinaryData.FromBytes("""
+            {
+              "type": "object",
+              "properties": {
+                "team_money": { "type": "integer" },
+                "loss_bonus": { "type": "integer" },
+                "side": { "type": "string", "enum": ["T", "CT"] },
+                "round_number": { "type": "integer" },
+                "weapons_saved": { "type": "array", "items": { "type": "string" } }
+              },
+              "required": ["team_money", "loss_bonus", "side", "round_number", "weapons_saved"]
+            }
+            """u8.ToArray())),
+        ChatTool.CreateFunctionTool(
+            functionName: "search_lineups",
+            functionDescription: "Search grenade lineups from the MySQL lineup_library table.",
+            functionParameters: BinaryData.FromBytes("""
+            {
+              "type": "object",
+              "properties": {
+                "map": { "type": "string" },
+                "site": { "type": "string", "description": "A, B, mid, etc." },
+                "grenade_type": { "type": "string", "enum": ["smoke", "flash", "molly", "HE"] },
+                "side": { "type": "string", "enum": ["T", "CT"] }
+              },
+              "required": ["map", "site", "grenade_type", "side"]
+            }
+            """u8.ToArray()))
+        // get_today_matches omitted until HLTV bridge is deployed (see Matches tab / HLTV_BRIDGE_URL).
+    ];
 
     public LlmService(IRagService rag, IFunctionCallingService functionCalling, IDatabaseService database)
     {
@@ -82,10 +82,23 @@ public sealed class LlmService : ILlmService
         var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
         // Railway often defines OPENAI_MODEL with an empty value; ?? only handles null, not "".
         var modelEnv = Environment.GetEnvironmentVariable("OPENAI_MODEL");
-        var model = string.IsNullOrWhiteSpace(modelEnv) ? "gpt-4o-mini" : modelEnv.Trim();
+        _model = string.IsNullOrWhiteSpace(modelEnv) ? "gpt-4o-mini" : modelEnv.Trim();
         if (!string.IsNullOrWhiteSpace(apiKey))
             // Official SDK: model first, then apiKey — use names so nobody inverts them.
-            _chatClient = new ChatClient(model: model, apiKey: apiKey);
+            _chatClient = new ChatClient(model: _model, apiKey: apiKey);
+    }
+
+    /// <summary>
+    /// OpenAI SDK merges request options with <c>options.Model ??= clientModel</c>. If <c>Model</c> is the empty string,
+    /// it is not null-coalesced and the API returns "you must provide a model parameter". Force a non-empty model on each request.
+    /// </summary>
+    private ChatCompletionOptions CreateChatCompletionOptions()
+    {
+        var o = new ChatCompletionOptions();
+        foreach (var t in CoachTools)
+            o.Tools.Add(t);
+        ChatCompletionOptionsModel.Set(o, _model);
+        return o;
     }
 
     public async Task<ChatResponse> ChatAsync(ChatRequest request, CancellationToken ct = default)
@@ -123,7 +136,7 @@ public sealed class LlmService : ILlmService
         for (var round = 0; round < 8; round++)
         {
             // --- LLM usage: model completion request ---
-            var completion = (await _chatClient.CompleteChatAsync(messages, ToolOptions, ct)).Value;
+            var completion = (await _chatClient.CompleteChatAsync(messages, CreateChatCompletionOptions(), ct)).Value;
 
             switch (completion.FinishReason)
             {
@@ -197,4 +210,14 @@ public sealed class LlmService : ILlmService
         await Ins("user", userMsg);
         await Ins("assistant", assistantMsg);
     }
+}
+
+/// <summary>OpenAI exposes <see cref="ChatCompletionOptions"/> model id via an internal property; set it so requests always include <c>model</c>.</summary>
+file static class ChatCompletionOptionsModel
+{
+    private static readonly PropertyInfo? ModelProperty = typeof(ChatCompletionOptions).GetProperty(
+        "Model",
+        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+    public static void Set(ChatCompletionOptions options, string model) => ModelProperty?.SetValue(options, model);
 }
