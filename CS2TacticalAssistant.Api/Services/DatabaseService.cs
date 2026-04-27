@@ -31,11 +31,12 @@ public sealed class DatabaseService : IDatabaseService
             return;
         }
 
-        var host = EnvAny("MYSQL_HOST", "MYSQLHOST");
-        var port = EnvAny("MYSQL_PORT", "MYSQLPORT");
-        var user = EnvAny("MYSQL_USER", "MYSQLUSER");
-        var password = EnvAny("MYSQL_PASSWORD", "MYSQLPASSWORD");
-        var database = EnvAny("MYSQL_DATABASE", "MYSQLDATABASE");
+        var host = EnvFirst("MYSQL_HOST", "MYSQLHOST");
+        var port = EnvFirst("MYSQL_PORT", "MYSQLPORT");
+        var user = EnvFirst("MYSQL_USER", "MYSQLUSER");
+        // Prefer explicit MYSQL_PASSWORD, then Railway root secret, then MYSQLPASSWORD (MYSQLPASSWORD can lag behind a stale ref).
+        var password = EnvFirst("MYSQL_PASSWORD", "MYSQL_ROOT_PASSWORD", "MYSQLPASSWORD");
+        var database = EnvFirst("MYSQL_DATABASE", "MYSQLDATABASE");
 
         ConnectionString =
             $"Server={host};Port={port};User ID={user};Password={password};Database={database};"
@@ -84,13 +85,15 @@ public sealed class DatabaseService : IDatabaseService
         || string.Equals(v?.Trim(), "true", StringComparison.OrdinalIgnoreCase)
         || string.Equals(v?.Trim(), "yes", StringComparison.OrdinalIgnoreCase);
 
-    private static string EnvAny(string primaryKey, string fallbackKey)
+    private static string EnvFirst(params string[] keys)
     {
-        var v = Environment.GetEnvironmentVariable(primaryKey);
-        if (!string.IsNullOrWhiteSpace(v)) return v.Trim();
-        v = Environment.GetEnvironmentVariable(fallbackKey);
-        if (!string.IsNullOrWhiteSpace(v)) return v.Trim();
+        foreach (var key in keys)
+        {
+            var v = Environment.GetEnvironmentVariable(key);
+            if (!string.IsNullOrWhiteSpace(v)) return v.Trim();
+        }
+
         throw new InvalidOperationException(
-            $"Missing MySQL setting: set MYSQL_URL (or MYSQL_PUBLIC_URL), or '{primaryKey}' / '{fallbackKey}'. See example.env in repo root.");
+            $"Missing MySQL setting — set one of: {string.Join(", ", keys)} (or MYSQL_URL / MYSQL_PUBLIC_URL). See example.env in repo root.");
     }
 }

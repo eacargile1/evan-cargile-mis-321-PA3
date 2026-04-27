@@ -182,7 +182,8 @@ app.MapGet(
                 mysqlUser = EnvPick("MYSQL_USER", "MYSQLUSER") ?? "(missing)",
                 mysqlPasswordSet = !string.IsNullOrWhiteSpace(
                     Environment.GetEnvironmentVariable("MYSQL_PASSWORD")
-                    ?? Environment.GetEnvironmentVariable("MYSQLPASSWORD")),
+                    ?? Environment.GetEnvironmentVariable("MYSQLPASSWORD")
+                    ?? Environment.GetEnvironmentVariable("MYSQL_ROOT_PASSWORD")),
                 mysqlDatabase = EnvPick("MYSQL_DATABASE", "MYSQLDATABASE") ?? "(missing)",
                 mysqlSslMode = Environment.GetEnvironmentVariable("MYSQL_SSL_MODE") ?? "(default Preferred)",
                 mysqlUrlSet = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MYSQL_URL")),
