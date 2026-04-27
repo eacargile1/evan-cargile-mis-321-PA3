@@ -101,6 +101,38 @@ app.UseCors();
 app.UseAuthorization();
 app.MapControllers();
 
+// Railway / minimal-hosting: endpoint routing can bypass UseStaticFiles for extension paths.
+// Serve critical static assets explicitly so CSS/JS always load (catch-all below would 404 them).
+{
+    var wroot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "wwwroot"));
+    var imagesRoot = Path.GetFullPath(Path.Combine(wroot, "images"));
+
+    static string ContentTypeForImage(string ext) =>
+        ext.Equals(".svg", StringComparison.OrdinalIgnoreCase) ? "image/svg+xml" : "application/octet-stream";
+
+    app.MapGet("/css/app.css", () =>
+    {
+        var f = Path.Combine(wroot, "css", "app.css");
+        return File.Exists(f) ? Results.File(f, "text/css") : Results.NotFound();
+    });
+    app.MapGet("/js/app.js", () =>
+    {
+        var f = Path.Combine(wroot, "js", "app.js");
+        return File.Exists(f) ? Results.File(f, "application/javascript") : Results.NotFound();
+    });
+    app.MapGet("/images/{**path}", (string path) =>
+    {
+        if (string.IsNullOrEmpty(path) || path.Contains("..", StringComparison.Ordinal))
+            return Results.BadRequest();
+        var full = Path.GetFullPath(Path.Combine(imagesRoot, path));
+        if (!full.StartsWith(imagesRoot, StringComparison.Ordinal) || full.Equals(imagesRoot, StringComparison.Ordinal))
+            return Results.NotFound();
+        return File.Exists(full)
+            ? Results.File(full, ContentTypeForImage(Path.GetExtension(full)))
+            : Results.NotFound();
+    });
+}
+
 // Confirms static assets exist in the running container (Railway / Docker debugging).
 app.MapGet(
     "/api/health/static",
